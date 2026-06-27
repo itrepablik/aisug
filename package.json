@@ -3,12 +3,12 @@
   "displayName": "DeepSeek Inline Completion",
   "description": "AI-powered inline code completions using DeepSeek",
   "version": "0.1.0",
-  "publisher": "DeepSeekInlineCompletion",
+  "publisher": "INT8Code",
   "license": "MIT",
   "icon": "assets/aisug.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/DeepSeekInlineCompletion/deepseek-inline-completion"
+    "url": "https://github.com/itrepablik/aisug"
   },
   "engines": {
     "vscode": "^1.82.0"

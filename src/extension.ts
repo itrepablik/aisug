@@ -147,7 +147,7 @@ function registerCommands(context: vscode.ExtensionContext): void {
         vscode.commands.registerCommand('deepseek.openSettings', () => {
             vscode.commands.executeCommand(
                 'workbench.action.openSettings',
-                '@ext:DeepSeekInlineCompletion.deepseek-inline-completion'
+                '@ext:INT8Code.deepseek-inline-completion'
             );
         })
     );
