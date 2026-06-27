@@ -67,7 +67,7 @@ AI-powered inline (ghost-text) code completions using the [DeepSeek API](https:/
 
 ```bash
 # Clone or navigate to the extension directory
-cd aisug
+cd deepseek-inline-completion
 
 # Install dependencies
 npm install
@@ -247,7 +247,7 @@ The raw model response goes through a cleanup pipeline in [`extractCompletion()`
 ### File Map
 
 ```
-aisug/
+deepseek-inline-completion/
 │
 ├── package.json                          # Extension manifest, contributes configuration & commands
 ├── tsconfig.json                         # TypeScript compiler configuration
@@ -436,7 +436,7 @@ You've hit DeepSeek's rate limit. Increase `deepseek.debounceMs` to send fewer r
 ### Project Setup
 
 ```bash
-cd aisug
+cd deepseek-inline-completion
 npm install
 npm run compile
 ```

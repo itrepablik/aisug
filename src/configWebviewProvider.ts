@@ -102,7 +102,7 @@ export class ConfigWebviewProvider implements vscode.WebviewViewProvider {
             case 'openFullSettings':
                 vscode.commands.executeCommand(
                     'workbench.action.openSettings',
-                    '@ext:aisug.deepseek-inline-completion'
+                    '@ext:DeepSeekInlineCompletion.deepseek-inline-completion'
                 );
                 break;
         }
