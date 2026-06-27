@@ -43,7 +43,7 @@ AI-powered inline (ghost-text) code completions using the [DeepSeek API](https:/
 | **Context-aware prompting** | Sends code before (`<PREFIX>`) and after (`<SUFFIX>`) the cursor |
 | **Debounced requests** | Configurable delay prevents flooding the API while typing |
 | **Cancellation on keystroke** | In-flight requests are aborted when you keep typing |
-| **Configurable model** | Use `deepseek-chat` or `deepseek-coder` |
+| **Configurable model** | Use `deepseek-v4-flash` (fast) or `deepseek-v4-pro` (quality) |
 | **Zero external HTTP dependencies** | Uses Node.js built-in `https` module — no `node-fetch` or `axios` |
 | **Secure API key storage** | Keys are stored in VS Code's [SecretStorage](https://code.visualstudio.com/api/references/vscode-api#SecretStorage), never in plaintext settings |
 
@@ -115,7 +115,7 @@ All settings are under the `deepseek.*` namespace. Open `File → Preferences �
 | Setting | Type | Default | Range | Description |
 |---|---|---|---|---|
 | `deepseek.enabled` | `boolean` | `true` | — | Master switch to enable/disable all completions |
-| `deepseek.model` | `string` | `"deepseek-chat"` | `"deepseek-chat"`, `"deepseek-coder"` | Which DeepSeek model to query |
+| `deepseek.model` | `string` | `"deepseek-v4-flash"` | `"deepseek-v4-flash"`, `"deepseek-v4-pro"` | Which DeepSeek model to query |
 | `deepseek.maxTokens` | `number` | `256` | `16`–`4096` | Maximum tokens in the completion response |
 | `deepseek.temperature` | `number` | `0.2` | `0`–`2` | Sampling temperature; lower = more deterministic |
 | `deepseek.debounceMs` | `number` | `300` | `100`–`2000` | Delay (ms) after last keystroke before requesting |
@@ -127,7 +127,7 @@ All settings are under the `deepseek.*` namespace. Open `File → Preferences �
 ```jsonc
 {
   "deepseek.enabled": true,
-  "deepseek.model": "deepseek-coder",
+  "deepseek.model": "deepseek-v4-pro",
   "deepseek.maxTokens": 512,
   "deepseek.temperature": 0.1,
   "deepseek.debounceMs": 500,
@@ -369,7 +369,7 @@ Best for fast typists who want suggestions to appear almost instantly. Shorter c
 
 ```jsonc
 {
-  "deepseek.model": "deepseek-coder",
+  "deepseek.model": "deepseek-v4-pro",
   "deepseek.debounceMs": 600,
   "deepseek.maxTokens": 1024,
   "deepseek.contextLines": 120,
@@ -384,7 +384,7 @@ Best for complex codebases where you want full function bodies, closing braces, 
 ```jsonc
 {
   "deepseek.enabledLanguages": ["python"],
-  "deepseek.model": "deepseek-coder",
+  "deepseek.model": "deepseek-v4-pro",
   "deepseek.temperature": 0.1,
   "deepseek.maxTokens": 256,
   "deepseek.contextLines": 60
@@ -419,7 +419,7 @@ You've hit DeepSeek's rate limit. Increase `deepseek.debounceMs` to send fewer r
 
 ### Suggestions are inaccurate or irrelevant
 
-- Set `deepseek.model` to `"deepseek-coder"` for code-specific completions.
+- Set `deepseek.model` to `"deepseek-v4-pro"` for higher-quality code completions.
 - Lower `deepseek.temperature` to `0` or `0.1` for more deterministic output.
 - Increase `deepseek.contextLines` to give the model more surrounding context.
 
@@ -480,7 +480,7 @@ No — every completion requires a network call to `api.deepseek.com`. There is 
 
 ### What does it cost?
 
-You pay DeepSeek directly for API usage. See [DeepSeek Pricing](https://platform.deepseek.com/pricing). At the time of writing, `deepseek-chat` is significantly cheaper per token than GPT-4.
+You pay DeepSeek directly for API usage. See [DeepSeek Pricing](https://platform.deepseek.com/pricing). `deepseek-v4-flash` is the most cost-effective option; `deepseek-v4-pro` costs more but delivers higher-quality completions.
 
 ### Can I use it alongside Copilot?
 
@@ -488,7 +488,7 @@ Yes. VS Code supports multiple inline completion providers. Copilot's suggestion
 
 ### What languages are supported?
 
-Any language VS Code recognizes (all language IDs). The model's quality will vary by language — `deepseek-coder` is trained on dozens of programming languages.
+Any language VS Code recognizes (all language IDs). Both `deepseek-v4-flash` and `deepseek-v4-pro` support dozens of programming languages. Use `v4-pro` for complex or less common languages.
 
 ### How do I report a bug or request a feature?
 

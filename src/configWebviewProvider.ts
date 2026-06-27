@@ -116,7 +116,7 @@ export class ConfigWebviewProvider implements vscode.WebviewViewProvider {
         const config = vscode.workspace.getConfiguration('deepseek');
         const hasKey = DeepSeekClient.hasApiKey();
         const enabled = config.get<boolean>('enabled', true);
-        const model = config.get<string>('model', 'deepseek-chat');
+        const model = config.get<string>('model', 'deepseek-v4-flash');
         const maxTokens = config.get<number>('maxTokens', 256);
         const temperature = config.get<number>('temperature', 0.2);
         const debounceMs = config.get<number>('debounceMs', 300);
@@ -318,13 +318,11 @@ export class ConfigWebviewProvider implements vscode.WebviewViewProvider {
     <input type="password" id="apiKeyInput" placeholder="sk-..." onblur="onApiKeyChange(this.value)">
 </div>
 
-<div class="section-title">Model</div>
-
 <div class="field">
     <label>Model</label>
     <select id="modelSelect" onchange="onModelChange(this.value)">
-        <option value="deepseek-chat">deepseek-chat</option>
-        <option value="deepseek-coder">deepseek-coder</option>
+        <option value="deepseek-v4-flash">deepseek-v4-flash (fast)</option>
+        <option value="deepseek-v4-pro">deepseek-v4-pro (quality)</option>
     </select>
 </div>
 

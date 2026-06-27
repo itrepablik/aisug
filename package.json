@@ -4,7 +4,8 @@
   "description": "AI-powered inline code completions using DeepSeek",
   "version": "0.1.0",
   "publisher": "aisug",
-  "icon": "assets/icon.png",
+  "license": "MIT",
+  "icon": "assets/aisug.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/aisug/deepseek-inline-completion"
@@ -31,12 +32,12 @@
         },
         "deepseek.model": {
           "type": "string",
-          "default": "deepseek-chat",
+          "default": "deepseek-v4-flash",
           "enum": [
-            "deepseek-chat",
-            "deepseek-coder"
+            "deepseek-v4-flash",
+            "deepseek-v4-pro"
           ],
-          "description": "DeepSeek model to use for completions"
+          "description": "DeepSeek model to use for completions. 'v4-flash' is fast and cost-effective; 'v4-pro' is higher quality"
         },
         "deepseek.maxTokens": {
           "type": "number",
@@ -81,7 +82,7 @@
         {
           "id": "deepseek-config",
           "title": "DeepSeek Inline Completion",
-          "icon": "assets/activitybar-icon.svg"
+          "icon": "assets/aisug.png"
         }
       ]
     },

@@ -155,11 +155,11 @@ function registerCommands(context: vscode.ExtensionContext): void {
     // Select model
     context.subscriptions.push(
         vscode.commands.registerCommand('deepseek.selectModel', async () => {
-            const current = config().get<string>('model', 'deepseek-chat');
+            const current = config().get<string>('model', 'deepseek-v4-flash');
             const picked = await vscode.window.showQuickPick(
                 [
-                    { label: 'deepseek-chat', description: 'General-purpose, fast, cost-effective' },
-                    { label: 'deepseek-coder', description: 'Code-optimized, higher quality for programming' },
+                    { label: 'deepseek-v4-flash', description: 'Fast, cost-effective — great for inline completions' },
+                    { label: 'deepseek-v4-pro', description: 'Higher quality, more capable — better for complex code' },
                 ],
                 { placeHolder: `Current: ${current}` }
             );
@@ -280,8 +280,8 @@ function updateStatusBar(): void {
     const config = vscode.workspace.getConfiguration(CONFIG_NS);
     const enabled = config.get<boolean>('enabled', true);
     const hasKey = DeepSeekClient.hasApiKey();
-    const model = config.get<string>('model', 'deepseek-chat');
-    const modelShort = model === 'deepseek-coder' ? 'Coder' : 'Chat';
+    const model = config.get<string>('model', 'deepseek-v4-flash');
+    const modelShort = model === 'deepseek-v4-pro' ? 'Pro' : 'Flash';
 
     if (!enabled) {
         statusBarItem.text = '$(circle-slash) DeepSeek: Off';

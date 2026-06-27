@@ -64,7 +64,7 @@ export class DeepSeekClient {
         }
 
         const config = vscode.workspace.getConfiguration('deepseek');
-        const model = config.get<string>('model', 'deepseek-chat');
+        const model = config.get<string>('model', 'deepseek-v4-flash');
         const maxTokens = config.get<number>('maxTokens', 256);
         const temperature = config.get<number>('temperature', 0.2);
 

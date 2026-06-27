@@ -2,4 +2,3 @@ node_modules/
 out/
 *.vsix
 .DS_Store
-LICENSE*
