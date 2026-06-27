@@ -1,0 +1,160 @@
+{
+  "name": "deepseek-inline-completion",
+  "displayName": "DeepSeek Inline Completion",
+  "description": "AI-powered inline code completions using DeepSeek",
+  "version": "0.1.0",
+  "publisher": "aisug",
+  "icon": "assets/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aisug/deepseek-inline-completion"
+  },
+  "engines": {
+    "vscode": "^1.82.0"
+  },
+  "categories": [
+    "Machine Learning",
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "DeepSeek Inline Completion",
+      "properties": {
+        "deepseek.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable or disable DeepSeek inline completions"
+        },
+        "deepseek.model": {
+          "type": "string",
+          "default": "deepseek-chat",
+          "enum": [
+            "deepseek-chat",
+            "deepseek-coder"
+          ],
+          "description": "DeepSeek model to use for completions"
+        },
+        "deepseek.maxTokens": {
+          "type": "number",
+          "default": 256,
+          "minimum": 16,
+          "maximum": 4096,
+          "description": "Maximum number of tokens in the completion response"
+        },
+        "deepseek.temperature": {
+          "type": "number",
+          "default": 0.2,
+          "minimum": 0,
+          "maximum": 2,
+          "description": "Sampling temperature (lower = more deterministic)"
+        },
+        "deepseek.debounceMs": {
+          "type": "number",
+          "default": 300,
+          "minimum": 100,
+          "maximum": 2000,
+          "description": "Debounce delay in milliseconds before requesting completions"
+        },
+        "deepseek.contextLines": {
+          "type": "number",
+          "default": 50,
+          "minimum": 10,
+          "maximum": 200,
+          "description": "Number of context lines to send above and below the cursor"
+        },
+        "deepseek.enabledLanguages": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Language IDs to enable completions for (empty = all languages). Example: [\"javascript\", \"typescript\", \"python\"]"
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "deepseek-config",
+          "title": "DeepSeek Inline Completion",
+          "icon": "assets/activitybar-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "deepseek-config": [
+        {
+          "type": "webview",
+          "id": "deepseek.configTree",
+          "name": "Settings",
+          "contextualTitle": "DeepSeek Configuration"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "deepseek.toggleCompletion",
+        "title": "DeepSeek: Toggle Inline Completion",
+        "icon": "$(toggle-on)"
+      },
+      {
+        "command": "deepseek.setApiKey",
+        "title": "DeepSeek: Set API Key",
+        "icon": "$(key)"
+      },
+      {
+        "command": "deepseek.openSettings",
+        "title": "DeepSeek: Open Settings",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "deepseek.selectModel",
+        "title": "DeepSeek: Select Model",
+        "icon": "$(server)"
+      },
+      {
+        "command": "deepseek.editMaxTokens",
+        "title": "DeepSeek: Edit Max Tokens",
+        "icon": "$(symbol-number)"
+      },
+      {
+        "command": "deepseek.editTemperature",
+        "title": "DeepSeek: Edit Temperature",
+        "icon": "$(dashboard)"
+      },
+      {
+        "command": "deepseek.editDebounce",
+        "title": "DeepSeek: Edit Debounce",
+        "icon": "$(watch)"
+      },
+      {
+        "command": "deepseek.editContextLines",
+        "title": "DeepSeek: Edit Context Lines",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "deepseek.editLanguages",
+        "title": "DeepSeek: Edit Enabled Languages",
+        "icon": "$(globe)"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.82.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0",
+    "eslint": "^8.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0"
+  }
+}
