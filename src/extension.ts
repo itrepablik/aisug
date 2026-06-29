@@ -86,6 +86,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             if (e.key === SECRET_KEY) {
                 context.secrets.get(SECRET_KEY).then((key) => {
                     DeepSeekClient.setApiKey(key);
+                    DeepSeekClient.clearErrors();
                     updateStatusBar();
                     configWebview?.refresh();
                 });
@@ -136,6 +137,8 @@ function registerCommands(context: vscode.ExtensionContext): void {
                     DeepSeekClient.setApiKey(newKey.trim());
                     vscode.window.showInformationMessage('DeepSeek API key stored securely.');
                 }
+                // Clear any stale error state from the previous key
+                DeepSeekClient.clearErrors();
                 updateStatusBar();
                 configWebview?.refresh();
             }

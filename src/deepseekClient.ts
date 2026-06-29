@@ -22,11 +22,20 @@ import { IncomingMessage } from 'node:http';
  * user settings). Use the static `setApiKey()` / `getApiKey()`
  * methods to manage it. The key is held in memory only for the
  * lifetime of the extension host process.
+ *
+ * ## Error Handling
+ *
+ * API errors are categorized per the official DeepSeek error codes:
+ * https://api-docs.deepseek.com/quick_start/error_codes
+ *
+ * Authentication (401) and billing (402) errors are surfaced as
+ * VS Code warnings with action buttons. Transient errors (429, 5xx)
+ * are logged to console only to avoid spamming the user.
  */
 export class DeepSeekClient {
     private readonly apiHost = 'api.deepseek.com';
     private readonly apiPath = '/beta/completions';
-    private readonly userAgent = 'vscode-deepseek-inline-completion/0.1.1';
+    private readonly userAgent = 'vscode-deepseek-inline-completion/0.1.2';
 
     // ---- Static API key (set by extension.ts from SecretStorage) ----
 
@@ -45,6 +54,65 @@ export class DeepSeekClient {
     /** Returns true if an API key has been loaded from SecretStorage. */
     static hasApiKey(): boolean {
         return !!DeepSeekClient._apiKey;
+    }
+
+    // ---- Static error state (debounced to avoid spamming) ----
+
+    /** Categories matching DeepSeek's official error classification. */
+    static readonly ErrorCategory = {
+        Authentication: 'authentication' as const,
+        Payment: 'payment' as const,
+        RateLimit: 'rate_limit' as const,
+        InvalidRequest: 'invalid_request' as const,
+        ServerError: 'server_error' as const,
+        Network: 'network' as const,
+    } as const;
+
+    /** Last categorized API error, if any. Cleared after consumption. */
+    private static _lastError: DeepSeekApiError | null = null;
+
+    /** Minimum interval (ms) between showing the same category of error. */
+    private static _lastErrorShownAt = new Map<string, number>();
+    private static readonly ERROR_COOLDOWN_MS = 30_000; // 30 seconds
+
+    /**
+     * Consume the last stored API error, returning it exactly once.
+     * After this call the error is cleared. Returns null if no error
+     * is pending or the cooldown for its category hasn't expired.
+     *
+     * Callers should use this to show a single VS Code warning per
+     * error category per cooldown window.
+     */
+    static consumeError(): DeepSeekApiError | null {
+        const err = DeepSeekClient._lastError;
+        if (!err) {
+            return null;
+        }
+
+        const lastShown = DeepSeekClient._lastErrorShownAt.get(err.category) ?? 0;
+        const now = Date.now();
+        if (now - lastShown < DeepSeekClient.ERROR_COOLDOWN_MS) {
+            return null; // Still in cooldown — don't spam
+        }
+
+        DeepSeekClient._lastErrorShownAt.set(err.category, now);
+        DeepSeekClient._lastError = null;
+        return err;
+    }
+
+    /** Store an API error for later consumption by the UI layer. */
+    private static storeError(err: DeepSeekApiError): void {
+        DeepSeekClient._lastError = err;
+        console.error(
+            `[DeepSeek Inline Completion] ${err.category} error (HTTP ${err.statusCode}): ${err.message}` +
+            (err.deepseekCode ? ` [code: ${err.deepseekCode}]` : '')
+        );
+    }
+
+    /** Clear all stored error state (e.g., on API key change). */
+    static clearErrors(): void {
+        DeepSeekClient._lastError = null;
+        DeepSeekClient._lastErrorShownAt.clear();
     }
 
     // ---- Instance methods ----
@@ -109,8 +177,15 @@ export class DeepSeekClient {
             if (err instanceof Error && err.name === 'AbortError') {
                 return null;
             }
-            const message = err instanceof Error ? err.message : String(err);
-            this.logError(`DeepSeek API request failed: ${message}`);
+            // Network-level errors (DNS, TLS, timeout) — store as Network category.
+            // API-level errors (4xx/5xx) are already stored by httpsRequest before
+            // resolving, so they don't reach this catch block.
+            DeepSeekClient.storeError({
+                category: DeepSeekClient.ErrorCategory.Network,
+                statusCode: 0,
+                message: err instanceof Error ? err.message : String(err),
+                timestamp: Date.now(),
+            });
             return null;
         }
     }
@@ -118,6 +193,9 @@ export class DeepSeekClient {
     /**
      * Perform an HTTPS POST request using Node's built-in https module.
      * Supports cancellation via AbortSignal.
+     *
+     * On non-200 responses, parses the error body per DeepSeek's error
+     * schema and stores a categorized DeepSeekApiError for the UI layer.
      */
     private httpsRequest(body: string, apiKey: string, signal: AbortSignal): Promise<string> {
         return new Promise<string>((resolve, reject) => {
@@ -141,9 +219,11 @@ export class DeepSeekClient {
                         const responseText = Buffer.concat(chunks).toString('utf-8');
 
                         if (res.statusCode !== 200) {
-                            this.logError(
-                                `DeepSeek API error ${res.statusCode}: ${responseText.slice(0, 500)}`
+                            const apiError = DeepSeekClient.parseErrorResponse(
+                                res.statusCode ?? 0,
+                                responseText
                             );
+                            DeepSeekClient.storeError(apiError);
                             resolve('{}'); // Return empty JSON; caller handles missing choices
                             return;
                         }
@@ -188,6 +268,100 @@ export class DeepSeekClient {
     }
 
     /**
+     * Parse a DeepSeek API error response body into a categorized error.
+     *
+     * Error response schema (from official docs):
+     * ```json
+     * { "error": { "message": "...", "type": "...", "param": null, "code": "..." } }
+     * ```
+     *
+     * See: https://api-docs.deepseek.com/quick_start/error_codes
+     */
+    private static parseErrorResponse(
+        statusCode: number,
+        responseText: string
+    ): DeepSeekApiError {
+        let errorMessage = `HTTP ${statusCode}`;
+        let deepseekCode: string | undefined;
+        let deepseekType: string | undefined;
+
+        try {
+            const body = JSON.parse(responseText) as { error?: DeepSeekErrorBody };
+            if (body.error?.message) {
+                errorMessage = body.error.message;
+            }
+            if (body.error?.code) {
+                deepseekCode = body.error.code;
+            }
+            if (body.error?.type) {
+                deepseekType = body.error.type;
+            }
+        } catch {
+            // Response body isn't valid JSON — use the raw text (truncated)
+            if (responseText.trim().length > 0) {
+                errorMessage = responseText.slice(0, 200);
+            }
+        }
+
+        return {
+            category: DeepSeekClient.categorizeError(statusCode, deepseekCode, deepseekType),
+            statusCode,
+            message: errorMessage,
+            deepseekCode,
+            timestamp: Date.now(),
+        };
+    }
+
+    /**
+     * Map an HTTP status code and optional DeepSeek error code to a category.
+     *
+     * Classification follows https://api-docs.deepseek.com/quick_start/error_codes:
+     * - 400: invalid_request_error    → InvalidRequest
+     * - 401: authentication_error     → Authentication
+     * - 402: insufficient_balance     → Payment
+     * - 422: invalid_request_error    → InvalidRequest
+     * - 429: rate_limit_reached_error → RateLimit
+     * - 500: internal_server_error    → ServerError
+     * - 503: server_overloaded_error  → ServerError
+     */
+    private static categorizeError(
+        statusCode: number,
+        deepseekCode?: string,
+        deepseekType?: string
+    ): DeepSeekErrorCategory {
+        // Use DeepSeek's explicit error code/type when available
+        if (deepseekCode === 'invalid_api_key' || deepseekType === 'authentication_error') {
+            return DeepSeekClient.ErrorCategory.Authentication;
+        }
+        if (deepseekCode === 'insufficient_balance' || deepseekType === 'insufficient_balance') {
+            return DeepSeekClient.ErrorCategory.Payment;
+        }
+        if (deepseekCode === 'rate_limit_reached_error' || statusCode === 429) {
+            return DeepSeekClient.ErrorCategory.RateLimit;
+        }
+
+        // Fallback to HTTP status code classification
+        switch (statusCode) {
+            case 401:
+                return DeepSeekClient.ErrorCategory.Authentication;
+            case 402:
+                return DeepSeekClient.ErrorCategory.Payment;
+            case 429:
+                return DeepSeekClient.ErrorCategory.RateLimit;
+            case 400:
+            case 422:
+                return DeepSeekClient.ErrorCategory.InvalidRequest;
+            case 500:
+            case 502:
+            case 503:
+            case 504:
+                return DeepSeekClient.ErrorCategory.ServerError;
+            default:
+                return DeepSeekClient.ErrorCategory.ServerError;
+        }
+    }
+
+    /**
      * Truncate code to a maximum character length, keeping the most
      * relevant portion. For prefix, keeps the tail (closest to cursor).
      * For suffix, the caller passes code that's already closest to cursor.
@@ -198,10 +372,34 @@ export class DeepSeekClient {
         }
         return '…\n' + code.slice(code.length - maxChars + 2);
     }
+}
 
-    private logError(message: string): void {
-        console.error(`[DeepSeek Inline Completion] ${message}`);
-    }
+// ---- API Error Types ----
+
+/** Union of all error category string literals. */
+export type DeepSeekErrorCategory =
+    | 'authentication'
+    | 'payment'
+    | 'rate_limit'
+    | 'invalid_request'
+    | 'server_error'
+    | 'network';
+
+/** Structured information about a DeepSeek API error. */
+export interface DeepSeekApiError {
+    category: DeepSeekErrorCategory;
+    statusCode: number;
+    message: string;
+    deepseekCode?: string;
+    timestamp: number;
+}
+
+/** Shape of the `error` object inside a DeepSeek error response. */
+interface DeepSeekErrorBody {
+    message: string;
+    type: string;
+    param: string | null;
+    code: string;
 }
 
 // ---- FIM API Response Types ----

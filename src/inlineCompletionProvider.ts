@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { DeepSeekClient } from './deepseekClient';
+import { DeepSeekClient, DeepSeekApiError } from './deepseekClient';
 
 /**
  * InlineCompletionItemProvider that uses DeepSeek to generate
@@ -13,6 +13,9 @@ export class DeepSeekInlineCompletionProvider implements vscode.InlineCompletion
 
     /** AbortController for cancelling in-flight requests */
     private abortController: AbortController | undefined;
+
+    /** Timer for showing error notifications (prevents spam on rapid typing). */
+    private errorNotificationTimer: ReturnType<typeof setTimeout> | undefined;
 
     /**
      * Called by VS Code when inline completions should be provided.
@@ -90,6 +93,9 @@ export class DeepSeekInlineCompletionProvider implements vscode.InlineCompletion
 
     /**
      * Core completion logic: extract context, call DeepSeek, build InlineCompletionItems.
+     *
+     * After every API call, checks for a consumed error and surfaces
+     * user-visible warnings for authentication / billing problems.
      */
     private async getCompletions(
         document: vscode.TextDocument,
@@ -128,6 +134,9 @@ export class DeepSeekInlineCompletionProvider implements vscode.InlineCompletion
                 this.abortController.signal
             );
 
+            // Check for API errors that should be surfaced to the user
+            this.showPendingApiError();
+
             if (!completion || token.isCancellationRequested) {
                 return [];
             }
@@ -149,6 +158,96 @@ export class DeepSeekInlineCompletionProvider implements vscode.InlineCompletion
         } finally {
             onCancel.dispose();
         }
+    }
+
+    /**
+     * Consume the most recent API error (if any) and show an appropriate
+     * VS Code warning notification with action buttons.
+     *
+     * Uses a small debounce so that rapid successive calls (e.g., while
+     * typing quickly) produce only one notification.
+     */
+    private showPendingApiError(): void {
+        const apiError = DeepSeekClient.consumeError();
+        if (!apiError) {
+            return;
+        }
+
+        // Small notification debounce: if a notification timer is already
+        // pending, let it fire; the next error will be picked up later.
+        if (this.errorNotificationTimer) {
+            return;
+        }
+
+        // Defer the notification slightly so rapid typing doesn't stack
+        // multiple VS Code message boxes simultaneously.
+        this.errorNotificationTimer = setTimeout(() => {
+            this.errorNotificationTimer = undefined;
+            this.showErrorNotification(apiError);
+        }, 200);
+    }
+
+    /**
+     * Display the appropriate VS Code warning based on error category.
+     */
+    private showErrorNotification(apiError: DeepSeekApiError): void {
+        switch (apiError.category) {
+            case DeepSeekClient.ErrorCategory.Authentication:
+                this.showAuthError(apiError);
+                break;
+            case DeepSeekClient.ErrorCategory.Payment:
+                this.showPaymentError(apiError);
+                break;
+            case DeepSeekClient.ErrorCategory.RateLimit:
+                // Rate-limited — not actionable; just log to console
+                break;
+            case DeepSeekClient.ErrorCategory.Network:
+                // Network errors are transient; logged already
+                break;
+            default:
+                // Server errors / invalid requests — logged already
+                break;
+        }
+    }
+
+    /**
+     * Show an authentication error warning with a "Set API Key" action.
+     */
+    private showAuthError(apiError: DeepSeekApiError): void {
+        const detail = apiError.message.length > 120
+            ? apiError.message.slice(0, 120) + '…'
+            : apiError.message;
+
+        vscode.window
+            .showWarningMessage(
+                `DeepSeek: Authentication failed — ${detail}`,
+                'Set API Key',
+                'Dismiss'
+            )
+            .then((selection) => {
+                if (selection === 'Set API Key') {
+                    vscode.commands.executeCommand('deepseek.setApiKey');
+                }
+            });
+    }
+
+    /**
+     * Show a payment/balance error warning.
+     */
+    private showPaymentError(apiError: DeepSeekApiError): void {
+        vscode.window
+            .showWarningMessage(
+                `DeepSeek: ${apiError.message}`,
+                'Open Platform',
+                'Dismiss'
+            )
+            .then((selection) => {
+                if (selection === 'Open Platform') {
+                    vscode.env.openExternal(
+                        vscode.Uri.parse('https://platform.deepseek.com/top_up')
+                    );
+                }
+            });
     }
 
     /**
@@ -183,6 +282,10 @@ export class DeepSeekInlineCompletionProvider implements vscode.InlineCompletion
         if (this.debounceTimer) {
             clearTimeout(this.debounceTimer);
             this.debounceTimer = undefined;
+        }
+        if (this.errorNotificationTimer) {
+            clearTimeout(this.errorNotificationTimer);
+            this.errorNotificationTimer = undefined;
         }
         if (this.abortController) {
             this.abortController.abort();
