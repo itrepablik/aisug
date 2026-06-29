@@ -178,15 +178,15 @@ Provider debounces for deepseek.debounceMs (default 300ms)
 Extract prefix (code before cursor) and suffix (code after cursor)
         │
         ▼
-Build FIM-style prompt with <PREFIX> / <CURSOR> / <SUFFIX>
+Truncate prefix/suffix, send directly as prompt + suffix fields
         │
         ▼
-POST to https://api.deepseek.com/v1/chat/completions
+POST to https://api.deepseek.com/beta/completions (FIM endpoint)
         │
         ├── New keystroke → AbortController aborts the in-flight request
         │
         ▼
-Parse response, extract completion text, strip markdown fences
+Parse response — FIM returns plain text directly (no cleanup needed)
         │
         ▼
 Return vscode.InlineCompletionItem → rendered as ghost text
@@ -194,51 +194,41 @@ Return vscode.InlineCompletionItem → rendered as ghost text
 
 ### Prompt Structure
 
-The extension does not rely on native Fill-in-the-Middle (FIM) API support. Instead, it constructs a structured chat message:
+The extension uses DeepSeek's native **Fill-in-the-Middle (FIM) API** at `POST /beta/completions`. No chat messages, system prompts, or `<PREFIX>`/`<SUFFIX>` markup needed.
 
-**System message:**
-```
-You are an expert inline code completion assistant.
-You complete code in the {language} programming language.
-
-RULES:
-1. Return ONLY the code that should appear at the cursor position.
-2. Do NOT repeat the prefix or suffix.
-3. Do NOT include any explanations, markdown fences, or commentary.
-4. Complete the current statement/expression logically.
-5. If the cursor is mid-identifier, complete that identifier naturally.
-6. If there is nothing meaningful to complete, return an empty response.
-7. Maintain the same indentation style as the surrounding code.
-8. Multi-line completions are acceptable when appropriate.
+**Request body:**
+```json
+{
+  "model": "deepseek-v4-flash",
+  "prompt": "function add(a, b) {\n  ",
+  "suffix": "\n}",
+  "max_tokens": 256,
+  "temperature": 0.2,
+  "stream": false
+}
 ```
 
-**User message:**
+- `prompt` — code **before** the cursor (prefix), truncated to ~4000 chars
+- `suffix` — code **after** the cursor, truncated to ~2000 chars
+- The model directly fills the gap between them
+
+### Response
+
+The FIM endpoint returns a flat `text` field — no chat message wrapping, no markdown fences, no prefix repetition:
+
+```json
+{
+  "choices": [{
+    "index": 0,
+    "text": "return a + b;",
+    "finish_reason": "stop"
+  }]
+}
 ```
-Complete the code at the <CURSOR> position in the following {language} file.
 
-<PREFIX>
-{last N lines of code before cursor}
-</PREFIX>
+The completion is trimmed and returned directly. If `text` is empty, no suggestion is shown.
 
-<CURSOR>
-
-<SUFFIX>
-{next N lines of code after cursor}
-</SUFFIX>
-
-Return ONLY the code that replaces <CURSOR>. Do not wrap in backticks.
-```
-
-Context is truncated: prefix keeps the **tail** (closest to cursor, up to ~2000 chars), suffix keeps the **head** (closest to cursor, up to ~1000 chars).
-
-### Response Extraction
-
-The raw model response goes through a cleanup pipeline in [`extractCompletion()`](src/deepseekClient.ts):
-
-1. Trim whitespace.
-2. Strip markdown code fences (` ``` `) if the model wrapped the output.
-3. Strip the prefix if the model accidentally repeated it.
-4. Return `null` if nothing meaningful remains (prevents showing empty/whitespace ghost text).
+**API reference:** https://api-docs.deepseek.com/guides/fim_completion
 
 ---
 
@@ -260,7 +250,7 @@ deepseek-inline-completion/
 │
 ├── src/
 │   ├── extension.ts                      # Activation entry point — registers provider + commands
-│   ├── deepseekClient.ts                 # HTTPS client for DeepSeek API (chat/completions)
+│   ├── deepseekClient.ts                 # HTTPS client for DeepSeek FIM API (/beta/completions)
 │   └── inlineCompletionProvider.ts       # VS Code InlineCompletionItemProvider implementation
 │
 └── out/                                  # Compiled JavaScript output (gitignored)
@@ -299,16 +289,14 @@ deepseek-inline-completion/
 ┌─────────────────────────────────────────────────────────────────┐
 │  deepseekClient.ts                                              │
 │  ├── complete(prefix, suffix, language, signal)                 │
-│  │   ├── Reads config (apiKey, model, maxTokens, temperature)   │
-│  │   ├── Builds FIM prompt via buildFimPrompt()                 │
+│  │   ├── Reads config (model, maxTokens, temperature)           │
+│  │   ├── Sends prompt + suffix to /beta/completions (FIM API)   │
 │  │   ├── POST via https.request() to api.deepseek.com           │
 │  │   ├── Parses JSON response                                   │
-│  │   └── Calls extractCompletion() to clean output              │
+│  │   └── Returns raw completion text (trimmed)                  │
 │  ├── httpsRequest() — raw HTTPS with AbortSignal support        │
-│  ├── buildSystemPrompt() — system role instructions             │
-│  ├── buildFimPrompt() — constructs <PREFIX>/<CURSOR>/<SUFFIX>   │
-│  ├── extractCompletion() — strips fences, prefix repeats        │
-│  └── truncateCode() — limits context to max character count     │
+│  ├── truncateCode() — limits context to max character count     │
+│  └── logError() — console.error wrapper                         │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -340,9 +328,6 @@ deepseek-inline-completion/
 ├──────────────────────────────────────────┤
 │ + complete(prefix, suffix, lang, signal) │
 │ - httpsRequest(body, apiKey, signal)     │
-│ - buildSystemPrompt(language)            │
-│ - buildFimPrompt(prefix, suffix, lang)   │
-│ - extractCompletion(raw, prefix)         │
 │ - truncateCode(code, maxChars)           │
 │ - logError(message)                      │
 └──────────────────────────────────────────┘
