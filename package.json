@@ -2,7 +2,7 @@
   "name": "deepseek-inline-completion",
   "displayName": "DeepSeek Inline Completion",
   "description": "AI-powered inline code completions using DeepSeek",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "INT8Code",
   "license": "MIT",
   "icon": "assets/aisug.png",

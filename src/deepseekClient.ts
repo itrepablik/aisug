@@ -26,7 +26,7 @@ import { IncomingMessage } from 'node:http';
 export class DeepSeekClient {
     private readonly apiHost = 'api.deepseek.com';
     private readonly apiPath = '/beta/completions';
-    private readonly userAgent = 'vscode-deepseek-inline-completion/0.1.0';
+    private readonly userAgent = 'vscode-deepseek-inline-completion/0.1.1';
 
     // ---- Static API key (set by extension.ts from SecretStorage) ----
 
